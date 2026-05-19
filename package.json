@@ -1,0 +1,20 @@
+{
+  "name": "complex-mapping",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/three": "^0.184.1",
+    "vite": "^8.0.12"
+  },
+  "dependencies": {
+    "complex.js": "^2.4.3",
+    "lil-gui": "^0.21.0",
+    "three": "^0.184.0"
+  }
+}
