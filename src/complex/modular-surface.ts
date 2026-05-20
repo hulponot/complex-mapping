@@ -3,7 +3,8 @@ import {
 	DoubleSide,
 	Float32BufferAttribute,
 	Mesh,
-	MeshStandardMaterial
+	MeshLambertMaterial,
+	Plane
 } from "three";
 
 /*
@@ -22,7 +23,8 @@ export function createComplexSurface(
 		imMin,
 		imMax,
 		resolution = 256,
-		scale = 1
+		scale = 1,
+		clippingPlanes = null
 	}: {
 		reMin: number;
 		reMax: number;
@@ -30,6 +32,7 @@ export function createComplexSurface(
 		imMax: number;
 		resolution?: number;
 		scale?: number;
+		clippingPlanes?: Plane[] | null
 	},
 	f: (re: number, im: number) => number
 ) {
@@ -111,10 +114,12 @@ export function createComplexSurface(
 	// material
 	// -----------------------------------
 
-	const material = new MeshStandardMaterial({
+	const material = new MeshLambertMaterial({
 		color: 0x66ccff,
 		side: DoubleSide,
-		wireframe: false
+		wireframe: false,
+		clippingPlanes: clippingPlanes,
+		clipIntersection: true
 	});
 
 	return new Mesh(geometry, material);

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createComplexSurface } from './complex/modular-surface';
 import Complex from 'complex.js';
+import GUI from 'lil-gui';
 
 let camera, controls, scene, renderer;
 
@@ -19,10 +20,11 @@ function init() {
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setAnimationLoop(animate);
+  renderer.localClippingEnabled = true;
   document.body.appendChild(renderer.domElement);
 
   camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
-  camera.position.set(400, 200, 0);
+  camera.position.set(10, 5, 0);
 
   // controls
 
@@ -43,7 +45,24 @@ function init() {
 
   controls.maxPolarAngle = Math.PI / 2;
 
+  // GUI
+
+  const viewParams = {
+    planeY: 1
+  }
+
+  const gui = new GUI();
+  gui.add(viewParams, 'planeY', 0, 5).onChange(v => plane.constant = v)
+
   // world
+  //Clipping plane
+  const plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), viewParams.planeY)
+  const planeHelper = new THREE.PlaneHelper(plane, 2, 0xffffff)
+  planeHelper.visible = true
+  planeHelper.size = 10
+
+  scene.add(planeHelper);
+  //Surface
 
   const surface = createComplexSurface(
     {
@@ -52,7 +71,8 @@ function init() {
       imMin: -5,
       imMax: 5,
       resolution: 300,
-      scale: 1
+      scale: 1,
+      clippingPlanes: [plane]
     },
     (re, im) => {
 
