@@ -1,4 +1,4 @@
-import type { Figure } from './figure';
+import type { Figure, FigureControlPoint } from './figure';
 import { createFigureId } from './figure';
 import type { ComplexPoint } from '../math/complex-point';
 
@@ -7,8 +7,8 @@ export class LineSegment implements Figure {
   readonly closed = false;
 
   constructor(
-    private readonly start: ComplexPoint = { real: -4, imaginary: 0 },
-    private readonly end: ComplexPoint = { real: 4, imaginary: 0 },
+    private start: ComplexPoint = { real: -4, imaginary: 0 },
+    private end: ComplexPoint = { real: 4, imaginary: 0 },
     id = createFigureId(),
   ) { this.id = id; }
 
@@ -20,7 +20,16 @@ export class LineSegment implements Figure {
     };
   }
 
-  getControlPoints(): ComplexPoint[] {
-    return [{ ...this.start }, { ...this.end }];
+  getControlPoints(): readonly FigureControlPoint[] {
+    return [
+      { id: 'start', role: 'endpoint', position: { ...this.start } },
+      { id: 'end', role: 'endpoint', position: { ...this.end } },
+    ];
+  }
+
+  moveControlPoint(id: string, position: ComplexPoint): void {
+    if (id === 'start') this.start = { ...position };
+    else if (id === 'end') this.end = { ...position };
+    else throw new Error(`Unknown line control point: ${id}`);
   }
 }

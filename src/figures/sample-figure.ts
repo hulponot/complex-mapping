@@ -4,6 +4,7 @@ import type { Figure, SampledFigure } from './figure';
 export function sampleFigure(figure: Figure, sampleCount = 128): SampledFigure {
   if (sampleCount < 2) throw new Error('sampleCount must be at least 2');
 
+  const controlPoints = figure.getControlPoints();
   const points = Array.from({ length: sampleCount }, (_, index) => {
     const t = figure.closed ? index / sampleCount : index / (sampleCount - 1);
     return figure.pointAt(t);
@@ -12,7 +13,8 @@ export function sampleFigure(figure: Figure, sampleCount = 128): SampledFigure {
   return {
     id: figure.id,
     points,
-    controlPoints: figure.getControlPoints(),
+    controlPoints: controlPoints.map(({ position }) => ({ ...position })),
+    controlPointIds: controlPoints.map(({ id }) => id),
     closed: figure.closed,
   };
 }

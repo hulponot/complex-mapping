@@ -4,6 +4,8 @@ export interface SampledFigure {
   readonly id: string;
   points: ComplexPoint[];
   controlPoints: ComplexPoint[];
+  /** Stable IDs corresponding by index to controlPoints. */
+  controlPointIds?: string[];
   closed: boolean;
 }
 
@@ -13,9 +15,16 @@ export function createFigureId(): string {
   return `figure-${nextFigureId++}`;
 }
 
+export interface FigureControlPoint {
+  readonly id: string;
+  readonly position: ComplexPoint;
+  readonly role?: string;
+}
+
 export interface Figure {
   readonly id: string;
   readonly closed: boolean;
   pointAt(t: number): ComplexPoint;
-  getControlPoints(): ComplexPoint[];
+  getControlPoints(): readonly FigureControlPoint[];
+  moveControlPoint(id: string, position: ComplexPoint): void;
 }

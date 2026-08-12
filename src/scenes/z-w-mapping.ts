@@ -3,7 +3,7 @@ import { Circle } from '../figures/circle';
 import { LineSegment } from '../figures/line-segment';
 import type { Figure } from '../figures/figure';
 import { mapSampledFigure, square } from '../mappings/complex-mapping';
-import { addFigure as addFigureToState, clearFigures, createMappingState, resampleFigures } from './mapping-state';
+import { addFigure as addFigureToState, clearFigures, createMappingState, moveControlPoint, resampleFigures } from './mapping-state';
 import { defaultStyleState } from './style-state';
 
 function createPlanePanel(label: string, plane: ComplexPlane): HTMLElement {
@@ -89,6 +89,10 @@ export function setupZWmapping(): HTMLElement {
   functionControl.append(label, input, hint);
   zPlane.onPointerMove((point) => {
     wPlane.setCursorPoint(point ? square(point) : null);
+  });
+  zPlane.onControlPointDrag(({ figureId, controlPointId, point }) => {
+    moveControlPoint(state, figureId, controlPointId, point);
+    updateFigures();
   });
   const mappingContent = document.createElement('div');
   mappingContent.className = 'mapping-content';

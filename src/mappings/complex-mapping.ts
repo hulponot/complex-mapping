@@ -19,6 +19,7 @@ export function mapSampledFigure(
     id: figure.id,
     points: figure.points.map(mapping),
     controlPoints: figure.controlPoints.map(mapping),
+    ...(figure.controlPointIds ? { controlPointIds: [...figure.controlPointIds] } : {}),
     closed: figure.closed,
   };
 }
