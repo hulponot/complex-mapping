@@ -1,16 +1,36 @@
 import {
   Color,
   OrthographicCamera,
-  PolarGridHelper,
+  GridHelper,
+  Group,
+  Line,
+  LineBasicMaterial,
+  BufferGeometry,
+  Mesh,
+  MeshBasicMaterial,
+  Plane as ThreePlane,
+  Raycaster,
+  Vector2,
+  Vector3,
+  SphereGeometry,
   Scene,
   WebGLRenderer,
 } from 'three';
+import type { Figure } from '../figures/figure';
 
 export class ComplexPlane {
   readonly renderer: WebGLRenderer;
 
   private readonly camera: OrthographicCamera;
   private readonly scene: Scene;
+  private readonly figuresGroup: Group;
+  private readonly figureMaterial: LineBasicMaterial;
+  private readonly controlGroup: Group;
+  private readonly grid: GridHelper;
+  private readonly cursor: Mesh;
+  private readonly raycaster = new Raycaster();
+  private readonly pointer = new Vector2();
+  private pointerCallback?: (point: Vector3 | null) => void;
 
   constructor() {
     this.scene = new Scene();
@@ -25,7 +45,18 @@ export class ComplexPlane {
     this.camera.position.set(0, 5, 0);
     this.camera.lookAt(0, 0, 0);
 
-    this.scene.add(new PolarGridHelper(10, 16, 8, 64));
+    this.grid = new GridHelper(100, 100, 0x227799, 0xccaaaa);
+    this.scene.add(this.grid);
+    this.figuresGroup = new Group();
+    this.figureMaterial = new LineBasicMaterial({ color: 0xffff00 });
+    this.scene.add(this.figuresGroup);
+    this.controlGroup = new Group();
+    this.scene.add(this.controlGroup);
+    this.cursor = new Mesh(new SphereGeometry(0.18, 16, 8), new MeshBasicMaterial({ color: 0xffffff }));
+    this.cursor.visible = false;
+    this.scene.add(this.cursor);
+    this.domElement.addEventListener('pointermove', this.handlePointerMove);
+    this.domElement.addEventListener('pointerleave', this.handlePointerLeave);
     this.renderer.setAnimationLoop(this.render);
   }
 
@@ -34,9 +65,87 @@ export class ComplexPlane {
   }
 
   dispose(): void {
+    this.clearFigures();
+    this.domElement.removeEventListener('pointermove', this.handlePointerMove);
+    this.domElement.removeEventListener('pointerleave', this.handlePointerLeave);
+    this.cursor.geometry.dispose();
+    (this.cursor.material as MeshBasicMaterial).dispose();
+    this.figureMaterial.dispose();
     this.renderer.setAnimationLoop(null);
     this.renderer.dispose();
   }
+
+  setFigures(figures: readonly Figure[]): void {
+    this.setFigureData(figures.map((figure) => ({
+      points: Array.from({ length: 128 }, (_, index) => figure.progress(figure.closed ? index / 128 : index / 127)),
+      controls: figure.getControlPoints(),
+      closed: figure.closed,
+    })));
+  }
+
+  setFigureData(data: readonly { points: Vector3[]; controls: Vector3[]; closed?: boolean }[]): void {
+    this.clearFigures();
+    for (const item of data) {
+      const points = item.points;
+      const geometry = new BufferGeometry().setFromPoints(points);
+      const line = new Line(geometry, this.figureMaterial);
+      if (item.closed) {
+        const closingGeometry = new BufferGeometry().setFromPoints([
+          points[points.length - 1],
+          points[0],
+        ]);
+        this.figuresGroup.add(line, new Line(closingGeometry, this.figureMaterial));
+      } else {
+        this.figuresGroup.add(line);
+      }
+      for (const point of item.controls) {
+        const control = new Mesh(new SphereGeometry(0.25, 12, 8), new MeshBasicMaterial({ color: 0xffaa00 }));
+        control.position.copy(point);
+        this.controlGroup.add(control);
+      }
+    }
+  }
+
+  clearFigures(): void {
+    for (const child of [...this.figuresGroup.children]) {
+      this.figuresGroup.remove(child);
+      if (child instanceof Line) child.geometry.dispose();
+    }
+    for (const child of [...this.controlGroup.children]) {
+      this.controlGroup.remove(child);
+      if (child instanceof Mesh) {
+        child.geometry.dispose();
+        (child.material as MeshBasicMaterial).dispose();
+      }
+    }
+  }
+
+  setFigureStyle(style: { color?: number; opacity?: number; linewidth?: number }): void {
+    if (style.color !== undefined) this.figureMaterial.color.setHex(style.color);
+    if (style.opacity !== undefined) { this.figureMaterial.opacity = style.opacity; this.figureMaterial.transparent = style.opacity < 1; }
+  }
+
+  setGridStyle(style: { color?: number; visible?: boolean }): void {
+    if (style.color !== undefined) { this.grid.material.color.setHex(style.color); this.grid.material.color.setHex(style.color); }
+    if (style.visible !== undefined) this.grid.visible = style.visible;
+  }
+
+  setCursorPoint(point: Vector3 | null): void {
+    this.cursor.visible = point !== null;
+    if (point) this.cursor.position.copy(point);
+  }
+
+  onPointerMove(callback: (point: Vector3 | null) => void): void { this.pointerCallback = callback; }
+
+  private handlePointerMove = (event: PointerEvent): void => {
+    const rect = this.domElement.getBoundingClientRect();
+    this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const hit = this.raycaster.ray.intersectPlane(new ThreePlane(new Vector3(0, 1, 0), 0), new Vector3());
+    if (hit) { this.cursor.position.copy(hit); this.cursor.visible = true; this.pointerCallback?.(hit.clone()); }
+  };
+
+  private handlePointerLeave = (): void => { this.cursor.visible = false; this.pointerCallback?.(null); };
 
   private render = (): void => {
     this.renderer.render(this.scene, this.camera);
