@@ -16,7 +16,9 @@ import {
   Scene,
   WebGLRenderer,
 } from 'three';
-import type { Figure } from '../figures/figure';
+import type { SampledFigure } from '../figures/figure';
+import type { ComplexPoint } from '../math/complex-point';
+import { fromVector3, toVector3 } from '../math/complex-point';
 
 export class ComplexPlane {
   readonly renderer: WebGLRenderer;
@@ -30,7 +32,7 @@ export class ComplexPlane {
   private readonly cursor: Mesh;
   private readonly raycaster = new Raycaster();
   private readonly pointer = new Vector2();
-  private pointerCallback?: (point: Vector3 | null) => void;
+  private pointerCallback?: (point: ComplexPoint | null) => void;
 
   constructor() {
     this.scene = new Scene();
@@ -38,12 +40,12 @@ export class ComplexPlane {
 
     this.renderer = new WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.setSize(300, 300);
     this.renderer.localClippingEnabled = true;
 
     this.camera = new OrthographicCamera(-10, 10, 10, -10, 0.01, 1000);
     this.camera.position.set(0, 5, 0);
     this.camera.lookAt(0, 0, 0);
+    this.resize(300, 300);
 
     this.grid = new GridHelper(100, 100, 0x227799, 0xccaaaa);
     this.scene.add(this.grid);
@@ -75,18 +77,13 @@ export class ComplexPlane {
     this.renderer.dispose();
   }
 
-  setFigures(figures: readonly Figure[]): void {
-    this.setFigureData(figures.map((figure) => ({
-      points: Array.from({ length: 128 }, (_, index) => figure.progress(figure.closed ? index / 128 : index / 127)),
-      controls: figure.getControlPoints(),
-      closed: figure.closed,
-    })));
-  }
-
-  setFigureData(data: readonly { points: Vector3[]; controls: Vector3[]; closed?: boolean }[]): void {
+  setFigures(data: readonly SampledFigure[]): void {
     this.clearFigures();
     for (const item of data) {
-      const points = item.points;
+      const points = item.points.map((point) => {
+        const vector = toVector3(point);
+        return new Vector3(vector.x, vector.y, vector.z);
+      });
       const geometry = new BufferGeometry().setFromPoints(points);
       const line = new Line(geometry, this.figureMaterial);
       if (item.closed) {
@@ -98,12 +95,24 @@ export class ComplexPlane {
       } else {
         this.figuresGroup.add(line);
       }
-      for (const point of item.controls) {
+      for (const point of item.controlPoints) {
         const control = new Mesh(new SphereGeometry(0.25, 12, 8), new MeshBasicMaterial({ color: 0xffaa00 }));
-        control.position.copy(point);
+        const vector = toVector3(point);
+        control.position.set(vector.x, vector.y, vector.z);
         this.controlGroup.add(control);
       }
     }
+  }
+
+  resize(width: number, height: number): void {
+    const aspect = width / Math.max(height, 1);
+    const halfHeight = 10;
+    this.camera.left = -halfHeight * aspect;
+    this.camera.right = halfHeight * aspect;
+    this.camera.top = halfHeight;
+    this.camera.bottom = -halfHeight;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(width, height, false);
   }
 
   clearFigures(): void {
@@ -130,19 +139,26 @@ export class ComplexPlane {
     if (style.visible !== undefined) this.grid.visible = style.visible;
   }
 
-  setCursorPoint(point: Vector3 | null): void {
+  setCursorPoint(point: ComplexPoint | null): void {
     this.cursor.visible = point !== null;
-    if (point) this.cursor.position.copy(point);
+    if (point) {
+      const vector = toVector3(point);
+      this.cursor.position.set(vector.x, vector.y, vector.z);
+    }
   }
 
-  onPointerMove(callback: (point: Vector3 | null) => void): void { this.pointerCallback = callback; }
+  onPointerMove(callback: (point: ComplexPoint | null) => void): void { this.pointerCallback = callback; }
 
   private handlePointerMove = (event: PointerEvent): void => {
     const rect = this.domElement.getBoundingClientRect();
     this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const hit = this.raycaster.ray.intersectPlane(new ThreePlane(new Vector3(0, 1, 0), 0), new Vector3());
-    if (hit) { this.cursor.position.copy(hit); this.cursor.visible = true; this.pointerCallback?.(hit.clone()); }
+    if (hit) {
+      this.cursor.position.copy(hit);
+      this.cursor.visible = true;
+      this.pointerCallback?.(fromVector3(hit));
+    }
   };
 
   private handlePointerLeave = (): void => { this.cursor.visible = false; this.pointerCallback?.(null); };

@@ -1,24 +1,26 @@
-import { Vector3 } from 'three';
 import type { Figure } from './figure';
+import { createFigureId } from './figure';
+import type { ComplexPoint } from '../math/complex-point';
 
 export class Circle implements Figure {
+  readonly id: string;
   readonly closed = true;
 
   constructor(
-    private readonly center = new Vector3(),
+    private readonly center: ComplexPoint = { real: 0, imaginary: 0 },
     private readonly radius = 3,
-  ) {}
+    id = createFigureId(),
+  ) { this.id = id; }
 
-  progress(t: number): Vector3 {
+  pointAt(t: number): ComplexPoint {
     const angle = t * Math.PI * 2;
-    return new Vector3(
-      this.center.x + this.radius * Math.cos(angle),
-      this.center.y,
-      this.center.z + this.radius * Math.sin(angle),
-    );
+    return {
+      real: this.center.real + this.radius * Math.cos(angle),
+      imaginary: this.center.imaginary + this.radius * Math.sin(angle),
+    };
   }
 
-  getControlPoints(): Vector3[] {
-    return [this.progress(0)];
+  getControlPoints(): ComplexPoint[] {
+    return [this.pointAt(0)];
   }
 }

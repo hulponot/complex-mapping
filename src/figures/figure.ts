@@ -1,7 +1,21 @@
-import { Vector3 } from 'three';
+import type { ComplexPoint } from '../math/complex-point';
+
+export interface SampledFigure {
+  readonly id: string;
+  points: ComplexPoint[];
+  controlPoints: ComplexPoint[];
+  closed: boolean;
+}
+
+let nextFigureId = 1;
+
+export function createFigureId(): string {
+  return `figure-${nextFigureId++}`;
+}
 
 export interface Figure {
-  progress(t: number): Vector3;
-  closed?: boolean;
-  getControlPoints(): Vector3[];
+  readonly id: string;
+  readonly closed: boolean;
+  pointAt(t: number): ComplexPoint;
+  getControlPoints(): ComplexPoint[];
 }

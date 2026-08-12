@@ -1,9 +1,10 @@
 import { ComplexPlane } from './complex-plane';
-import { Vector3 } from 'three';
 import { Circle } from '../figures/circle';
 import { LineSegment } from '../figures/line-segment';
 import type { Figure } from '../figures/figure';
-import { square } from '../mapping/complex-mapping';
+import { mapSampledFigure, square } from '../mappings/complex-mapping';
+import { addFigure as addFigureToState, clearFigures, createMappingState, resampleFigures } from './mapping-state';
+import { defaultStyleState } from './style-state';
 
 function createPlanePanel(label: string, plane: ComplexPlane): HTMLElement {
   const panel = document.createElement('section');
@@ -26,14 +27,16 @@ export function setupZWmapping(): HTMLElement {
 
   const zPlane = new ComplexPlane();
   const wPlane = new ComplexPlane();
-  const figures: Figure[] = [];
+  const state = createMappingState(square);
+  const styles = defaultStyleState();
   const updateFigures = (): void => {
-    const data = figures.map((figure) => ({
-      points: Array.from({ length: 128 }, (_, index) => figure.progress(figure.closed ? index / 128 : index / 127)),
-      controls: figure.getControlPoints(), closed: figure.closed,
-    }));
-    zPlane.setFigureData(data);
-    wPlane.setFigureData(data.map((item) => ({ ...item, points: item.points.map(square), controls: item.controls.map(square) })));
+    resampleFigures(state);
+    zPlane.setFigures(state.sampledFigures);
+    wPlane.setFigures(state.sampledFigures.map((figure) => mapSampledFigure(figure, state.mapping)));
+    zPlane.setFigureStyle({ color: styles.figureColor, opacity: styles.figureOpacity });
+    wPlane.setFigureStyle({ color: styles.figureColor, opacity: styles.figureOpacity });
+    zPlane.setGridStyle({ color: styles.gridColor, visible: styles.gridVisible });
+    wPlane.setGridStyle({ color: styles.gridColor, visible: styles.gridVisible });
   };
 
   const toolbar = document.createElement('aside');
@@ -41,7 +44,7 @@ export function setupZWmapping(): HTMLElement {
   toolbar.setAttribute('aria-label', 'Figures');
 
   const addFigure = (figure: Figure): void => {
-    figures.push(figure);
+    addFigureToState(state, figure);
     updateFigures();
   };
 
@@ -49,7 +52,7 @@ export function setupZWmapping(): HTMLElement {
   circlesButton.className = 'figure-toolbar__button';
   circlesButton.type = 'button';
   circlesButton.textContent = 'Circles';
-  circlesButton.addEventListener('click', () => addFigure(new Circle(new Vector3(0, 0, 0), 3)));
+  circlesButton.addEventListener('click', () => addFigure(new Circle()));
 
   const lineButton = document.createElement('button');
   lineButton.className = 'figure-toolbar__button';
@@ -60,7 +63,7 @@ export function setupZWmapping(): HTMLElement {
   toolbar.append(circlesButton, lineButton);
   const clearButton = document.createElement('button');
   clearButton.className = 'figure-toolbar__button'; clearButton.type = 'button'; clearButton.textContent = 'Clear';
-  clearButton.addEventListener('click', () => { figures.length = 0; updateFigures(); });
+  clearButton.addEventListener('click', () => { clearFigures(state); updateFigures(); });
   toolbar.append(clearButton);
 
   const functionControl = document.createElement('div');
@@ -95,18 +98,28 @@ export function setupZWmapping(): HTMLElement {
   const styleToolbar = document.createElement('div');
   styleToolbar.className = 'style-toolbar';
   const color = document.createElement('input'); color.type = 'color'; color.value = '#ffff00'; color.title = 'Figure color'; color.setAttribute('aria-label', 'Figure color');
-  color.addEventListener('input', () => { const value = Number.parseInt(color.value.slice(1), 16); zPlane.setFigureStyle({ color: value }); wPlane.setFigureStyle({ color: value }); });
+  color.addEventListener('input', () => { styles.figureColor = Number.parseInt(color.value.slice(1), 16); updateFigures(); });
   const opacity = document.createElement('input'); opacity.type = 'range'; opacity.min = '0.1'; opacity.max = '1'; opacity.step = '0.1'; opacity.value = '1'; opacity.title = 'Figure opacity'; opacity.setAttribute('aria-label', 'Figure opacity');
-  opacity.addEventListener('input', () => { const value = Number(opacity.value); zPlane.setFigureStyle({ opacity: value }); wPlane.setFigureStyle({ opacity: value }); });
+  opacity.addEventListener('input', () => { styles.figureOpacity = Number(opacity.value); updateFigures(); });
   const gridColor = document.createElement('input'); gridColor.type = 'color'; gridColor.value = '#227799'; gridColor.title = 'Grid color'; gridColor.setAttribute('aria-label', 'Grid color');
-  gridColor.addEventListener('input', () => { const value = Number.parseInt(gridColor.value.slice(1), 16); zPlane.setGridStyle({ color: value }); wPlane.setGridStyle({ color: value }); });
+  gridColor.addEventListener('input', () => { styles.gridColor = Number.parseInt(gridColor.value.slice(1), 16); updateFigures(); });
   const gridToggle = document.createElement('input'); gridToggle.type = 'checkbox'; gridToggle.checked = true; gridToggle.title = 'Show grid'; gridToggle.setAttribute('aria-label', 'Show grid');
-  gridToggle.addEventListener('change', () => { zPlane.setGridStyle({ visible: gridToggle.checked }); wPlane.setGridStyle({ visible: gridToggle.checked }); });
+  gridToggle.addEventListener('change', () => { styles.gridVisible = gridToggle.checked; updateFigures(); });
   styleToolbar.append(color, opacity, gridColor, gridToggle);
   const workspace = document.createElement('div');
   workspace.className = 'mapping-workspace';
   workspace.append(toolbar, mappingContent);
   mapping.append(styleToolbar, workspace);
+
+  const resize = (): void => {
+    const width = Math.max(1, Math.floor(zPlane.domElement.clientWidth || 300));
+    const height = Math.max(1, Math.floor(zPlane.domElement.clientHeight || 300));
+    zPlane.resize(width, height);
+    wPlane.resize(width, height);
+  };
+  window.addEventListener('resize', resize);
+  resize();
+  updateFigures();
 
   return mapping;
 }

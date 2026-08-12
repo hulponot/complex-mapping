@@ -1,17 +1,26 @@
-import { Vector3 } from 'three';
 import type { Figure } from './figure';
+import { createFigureId } from './figure';
+import type { ComplexPoint } from '../math/complex-point';
 
 export class LineSegment implements Figure {
-  constructor(
-    private readonly start = new Vector3(-4, 0, 0),
-    private readonly end = new Vector3(4, 0, 0),
-  ) {}
+  readonly id: string;
+  readonly closed = false;
 
-  progress(t: number): Vector3 {
-    return this.start.clone().lerp(this.end, Math.min(1, Math.max(0, t)));
+  constructor(
+    private readonly start: ComplexPoint = { real: -4, imaginary: 0 },
+    private readonly end: ComplexPoint = { real: 4, imaginary: 0 },
+    id = createFigureId(),
+  ) { this.id = id; }
+
+  pointAt(t: number): ComplexPoint {
+    const progress = Math.min(1, Math.max(0, t));
+    return {
+      real: this.start.real + (this.end.real - this.start.real) * progress,
+      imaginary: this.start.imaginary + (this.end.imaginary - this.start.imaginary) * progress,
+    };
   }
 
-  getControlPoints(): Vector3[] {
-    return [this.start.clone(), this.end.clone()];
+  getControlPoints(): ComplexPoint[] {
+    return [{ ...this.start }, { ...this.end }];
   }
 }
