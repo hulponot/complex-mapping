@@ -1,51 +1,53 @@
-import {
-    OrthographicCamera,
-    Scene,
-    WebGLRenderer,
-    Color,
-    FogExp2,
-    Vector3,
-    Plane,
-    PlaneHelper,
-    PolarGridHelper,
-    DirectionalLight
-} from 'three';
+import { ComplexPlane } from './complex-plane';
 
-let camera: OrthographicCamera;
-let scene: Scene;
-let renderer: WebGLRenderer;
+function createPlanePanel(label: string, plane: ComplexPlane): HTMLElement {
+  const panel = document.createElement('section');
+  panel.className = 'complex-plane-panel';
 
-export function setupZWmapping(): WebGLRenderer {
-    scene = new Scene();
-    scene.background = new Color(0xcc00ff);
+  const heading = document.createElement('h2');
+  heading.className = 'complex-plane-panel__label';
+  heading.textContent = label;
 
-    renderer = new WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(300, 300);
-    renderer.localClippingEnabled = true;
+  plane.domElement.className = 'complex-plane-panel__canvas';
+  plane.domElement.setAttribute('aria-label', `${label} complex plane`);
 
-    camera = new OrthographicCamera(-10, 10, 10, -10, 0.01, 1000);
-    camera.position.set(0, 5, 0);
-    camera.lookAt(0, 0, 0);
-
-    renderer.setAnimationLoop(animate);
-
-    const radius = 10;
-    const sectors = 16;
-    const rings = 8;
-    const divisions = 64;
-    const gridHelper = new PolarGridHelper(radius, sectors, rings, divisions)
-
-    scene.add(gridHelper);
-
-    return renderer;
-
+  panel.append(heading, plane.domElement);
+  return panel;
 }
 
-function animate() {
-    render();
-}
+export function setupZWmapping(): HTMLElement {
+  const mapping = document.createElement('main');
+  mapping.className = 'z-w-mapping';
 
-function render() {
-    renderer.render(scene, camera);
+  const zPlane = new ComplexPlane();
+  const wPlane = new ComplexPlane();
+
+  const functionControl = document.createElement('div');
+  functionControl.className = 'mapping-function';
+
+  const label = document.createElement('label');
+  label.className = 'mapping-function__label';
+  label.htmlFor = 'mapping-function-input';
+  label.textContent = 'Mapping';
+
+  const input = document.createElement('input');
+  input.className = 'mapping-function__input';
+  input.id = 'mapping-function-input';
+  input.type = 'text';
+  input.placeholder = 'w = f(z)';
+  input.setAttribute('aria-describedby', 'mapping-function-hint');
+
+  const hint = document.createElement('p');
+  hint.className = 'mapping-function__hint';
+  hint.id = 'mapping-function-hint';
+  hint.textContent = 'Function mapping will be available soon.';
+
+  functionControl.append(label, input, hint);
+  mapping.append(
+    createPlanePanel('z-plane', zPlane),
+    functionControl,
+    createPlanePanel('w-plane', wPlane),
+  );
+
+  return mapping;
 }

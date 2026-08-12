@@ -1,9 +1,11 @@
 
-import { createComplexSurface } from './complex/modular-surface';
-import { createModularSurface } from './scenes/modular-surface';
 import { setupZWmapping } from './scenes/z-w-mapping';
+import './style.css';
 
-//createModularSurface();
-let renderer = setupZWmapping();
+const app = document.querySelector('#app');
 
-document.body.appendChild(renderer.domElement);
+if (!app) {
+  throw new Error('Could not find the app container.');
+}
+
+app.appendChild(setupZWmapping());
