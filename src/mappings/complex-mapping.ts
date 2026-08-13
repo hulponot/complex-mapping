@@ -21,5 +21,6 @@ export function mapSampledFigure(
     controlPoints: figure.controlPoints.map(mapping),
     ...(figure.controlPointIds ? { controlPointIds: [...figure.controlPointIds] } : {}),
     closed: figure.closed,
+    ...(figure.paths ? { paths: figure.paths.map((path) => path.map(mapping)) } : {}),
   };
 }

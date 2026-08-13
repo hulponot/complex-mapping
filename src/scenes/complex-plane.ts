@@ -20,6 +20,12 @@ import type { SampledFigure } from '../figures/figure';
 import type { ComplexPoint } from '../math/complex-point';
 import { fromVector3, toVector3 } from '../math/complex-point';
 
+interface RenderedFigure {
+  readonly id: string;
+  readonly paths: Array<{ line: Line; closingLine?: Line }>;
+  readonly handles: Map<string, Mesh>;
+}
+
 export class ComplexPlane {
   private static readonly controlPointColor = 0xffaa00;
   private static readonly hoveredControlPointColor = 0xffdd66;
@@ -41,6 +47,7 @@ export class ComplexPlane {
   private controlPointDragCallback?: (event: ControlPointDrag) => void;
   private controlPointDragStartCallback?: (event: ControlPointDrag) => void;
   private controlPointDragEndCallback?: (event: ControlPointDrag) => void;
+  private readonly renderedFigures = new Map<string, RenderedFigure>();
   private readonly controlHandles = new Map<Mesh, { figureId: string; controlPointId: string }>();
   private activeDrag?: {
     mesh: Mesh;
@@ -102,37 +109,129 @@ export class ComplexPlane {
   }
 
   setFigures(data: readonly SampledFigure[]): void {
-    this.clearFigures();
+    this.reconcileFigures(data);
+    this.updateFigures(data);
+  }
+
+  updateFigures(data: readonly SampledFigure[]): void {
+    this.reconcileFigures(data);
     for (const item of data) {
-      const points = item.points.map((point) => {
-        const vector = toVector3(point);
-        return new Vector3(vector.x, vector.y, vector.z);
+      const rendered = this.renderedFigures.get(item.id);
+      if (!rendered) continue;
+      const paths = item.paths ?? [item.points];
+      paths.forEach((path, index) => {
+        const renderedPath = rendered.paths[index];
+        if (!renderedPath) return;
+        this.updateLineGeometry(renderedPath.line, path);
+        if (renderedPath.closingLine && path.length > 0) {
+          this.updateLineGeometry(renderedPath.closingLine, [path[path.length - 1], path[0]]);
+        }
       });
-      const geometry = new BufferGeometry().setFromPoints(points);
-      const line = new Line(geometry, this.figureMaterial);
-      if (item.closed) {
-        const closingGeometry = new BufferGeometry().setFromPoints([
-          points[points.length - 1],
-          points[0],
-        ]);
-        this.figuresGroup.add(line, new Line(closingGeometry, this.figureMaterial));
-      } else {
-        this.figuresGroup.add(line);
-      }
       item.controlPoints.forEach((point, index) => {
-        const control = new Mesh(
-          new SphereGeometry(0.25, 12, 8),
-          new MeshBasicMaterial({ color: ComplexPlane.controlPointColor }),
-        );
-        const vector = toVector3(point);
-        control.position.set(vector.x, vector.y, vector.z);
-        this.controlGroup.add(control);
-        this.controlHandles.set(control, {
-          figureId: item.id,
-          controlPointId: item.controlPointIds?.[index] ?? `control-point-${index}`,
-        });
+        const controlPointId = item.controlPointIds?.[index] ?? `control-point-${index}`;
+        const handle = rendered.handles.get(controlPointId);
+        if (handle) {
+          const vector = toVector3(point);
+          handle.position.set(vector.x, vector.y, vector.z);
+        }
       });
     }
+  }
+
+  private reconcileFigures(data: readonly SampledFigure[]): void {
+    const incomingIds = new Set(data.map((item) => item.id));
+    for (const [id, rendered] of this.renderedFigures) {
+      if (!incomingIds.has(id)) this.removeRenderedFigure(rendered);
+    }
+    for (const item of data) {
+      const existing = this.renderedFigures.get(item.id);
+      if (!existing) {
+        this.renderedFigures.set(item.id, this.createRenderedFigure(item));
+        continue;
+      }
+      const pathCount = item.paths?.length ?? 1;
+      const ids = item.controlPoints.map((_, index) => item.controlPointIds?.[index] ?? `control-point-${index}`);
+      if (pathCount !== existing.paths.length || ids.length !== existing.handles.size || ids.some((id) => !existing.handles.has(id))) {
+        this.removeRenderedFigure(existing);
+        this.renderedFigures.set(item.id, this.createRenderedFigure(item));
+        continue;
+      }
+    }
+  }
+
+  private createRenderedFigure(item: SampledFigure): RenderedFigure {
+    const paths = item.paths ?? [item.points];
+    const renderedPaths = paths.map((path) => {
+      const line = new Line(this.createGeometry(path), this.figureMaterial);
+      const closingLine = item.closed && path.length > 0
+        ? new Line(this.createGeometry([path[path.length - 1], path[0]]), this.figureMaterial)
+        : undefined;
+      this.figuresGroup.add(line);
+      if (closingLine) this.figuresGroup.add(closingLine);
+      return { line, closingLine };
+    });
+    const rendered: RenderedFigure = { id: item.id, paths: renderedPaths, handles: new Map() };
+    this.createRenderedHandles(rendered, item);
+    return rendered;
+  }
+
+  private createRenderedHandles(rendered: RenderedFigure, item: SampledFigure): void {
+    item.controlPoints.forEach((point, index) => {
+      const controlPointId = item.controlPointIds?.[index] ?? `control-point-${index}`;
+      const control = new Mesh(new SphereGeometry(0.25, 12, 8), new MeshBasicMaterial({ color: ComplexPlane.controlPointColor }));
+      const vector = toVector3(point);
+      control.position.set(vector.x, vector.y, vector.z);
+      rendered.handles.set(controlPointId, control);
+      this.controlGroup.add(control);
+      this.controlHandles.set(control, { figureId: item.id, controlPointId });
+    });
+  }
+
+  private createGeometry(points: readonly ComplexPoint[]): BufferGeometry {
+    return new BufferGeometry().setFromPoints(points.map((point) => {
+      const vector = toVector3(point);
+      return new Vector3(vector.x, vector.y, vector.z);
+    }));
+  }
+
+  private updateLineGeometry(line: Line, points: readonly ComplexPoint[]): void {
+    const position = line.geometry.getAttribute('position');
+    if (position.count !== points.length) {
+      const oldGeometry = line.geometry;
+      line.geometry = this.createGeometry(points);
+      oldGeometry.dispose();
+      return;
+    }
+    points.forEach((point, index) => {
+      const vector = toVector3(point);
+      position.setXYZ(index, vector.x, vector.y, vector.z);
+    });
+    position.needsUpdate = true;
+    line.geometry.computeBoundingSphere();
+  }
+
+  private removeRenderedHandles(rendered: RenderedFigure): void {
+    for (const handle of rendered.handles.values()) {
+      this.controlHandles.delete(handle);
+      this.controlGroup.remove(handle);
+      handle.geometry.dispose();
+      (handle.material as MeshBasicMaterial).dispose();
+    }
+    rendered.handles.clear();
+  }
+
+  private removeRenderedFigure(rendered: RenderedFigure): void {
+    if (this.activeDrag?.figureId === rendered.id) this.endDrag();
+    this.removeRenderedHandles(rendered);
+    for (const path of rendered.paths) {
+      this.figuresGroup.remove(path.line);
+      path.line.geometry.dispose();
+      if (path.closingLine) {
+        this.figuresGroup.remove(path.closingLine);
+        path.closingLine.geometry.dispose();
+      }
+    }
+    this.renderedFigures.delete(rendered.id);
   }
 
   resize(width: number, height: number): void {
@@ -147,21 +246,9 @@ export class ComplexPlane {
   }
 
   clearFigures(): void {
-    console.log("clear figs");
-    this.activeDrag = undefined;
+    this.endDrag();
     this.hoveredControl = undefined;
-    this.controlHandles.clear();
-    for (const child of [...this.figuresGroup.children]) {
-      this.figuresGroup.remove(child);
-      if (child instanceof Line) child.geometry.dispose();
-    }
-    for (const child of [...this.controlGroup.children]) {
-      this.controlGroup.remove(child);
-      if (child instanceof Mesh) {
-        child.geometry.dispose();
-        (child.material as MeshBasicMaterial).dispose();
-      }
-    }
+    for (const rendered of [...this.renderedFigures.values()]) this.removeRenderedFigure(rendered);
   }
 
   setFigureStyle(style: { color?: number; opacity?: number; linewidth?: number }): void {
@@ -275,7 +362,6 @@ export class ComplexPlane {
 
   private endDrag(pointerId?: number): void {
     if (!this.activeDrag) return;
-    console.warn("end drag");
     const drag = this.activeDrag;
     this.controlPointDragEndCallback?.({
       figureId: drag.figureId,

@@ -5,17 +5,19 @@ export function sampleFigure(figure: Figure, sampleCount = 128): SampledFigure {
   if (sampleCount < 2) throw new Error('sampleCount must be at least 2');
 
   const controlPoints = figure.getControlPoints();
-  const points = Array.from({ length: sampleCount }, (_, index) => {
+  const paths = figure.samplePaths?.(sampleCount);
+  const points = paths?.[0] ?? Array.from({ length: sampleCount }, (_, index) => {
     const t = figure.closed ? index / sampleCount : index / (sampleCount - 1);
     return figure.pointAt(t);
   });
 
   return {
     id: figure.id,
-    points,
+    points: points.map(clonePoint),
     controlPoints: controlPoints.map(({ position }) => ({ ...position })),
     controlPointIds: controlPoints.map(({ id }) => id),
     closed: figure.closed,
+    ...(paths ? { paths: paths.map((path) => path.map(clonePoint)) } : {}),
   };
 }
 

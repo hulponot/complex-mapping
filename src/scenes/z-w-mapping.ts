@@ -1,6 +1,7 @@
 import { ComplexPlane } from './complex-plane';
 import { Circle } from '../figures/circle';
 import { LineSegment } from '../figures/line-segment';
+import { CassiniOvals, Ellipses } from '../figures/two-pole';
 import type { Figure } from '../figures/figure';
 import { mapSampledFigure, square } from '../mappings/complex-mapping';
 import { addFigure as addFigureToState, clearFigures, createMappingState, moveControlPoint, resampleFigures } from './mapping-state';
@@ -60,7 +61,21 @@ export function setupZWmapping(): HTMLElement {
   lineButton.textContent = 'Line';
   lineButton.addEventListener('click', () => addFigure(new LineSegment()));
 
-  toolbar.append(circlesButton, lineButton);
+  const cassiniButton = document.createElement('button');
+  cassiniButton.className = 'figure-toolbar__button';
+  cassiniButton.type = 'button';
+  cassiniButton.textContent = 'Cassini';
+  cassiniButton.title = 'Loci where r₁ · r₂ is constant';
+  cassiniButton.addEventListener('click', () => addFigure(new CassiniOvals()));
+
+  const ellipseButton = document.createElement('button');
+  ellipseButton.className = 'figure-toolbar__button';
+  ellipseButton.type = 'button';
+  ellipseButton.textContent = 'Ellipses';
+  ellipseButton.title = 'Loci where r₁ + r₂ is constant';
+  ellipseButton.addEventListener('click', () => addFigure(new Ellipses()));
+
+  toolbar.append(circlesButton, lineButton, cassiniButton, ellipseButton);
   const clearButton = document.createElement('button');
   clearButton.className = 'figure-toolbar__button'; clearButton.type = 'button'; clearButton.textContent = 'Clear';
   clearButton.addEventListener('click', () => { clearFigures(state); updateFigures(); });
@@ -92,7 +107,9 @@ export function setupZWmapping(): HTMLElement {
   });
   zPlane.onControlPointDrag(({ figureId, controlPointId, point }) => {
     moveControlPoint(state, figureId, controlPointId, point);
-    updateFigures();
+    const mappedFigures = state.sampledFigures.map((figure) => mapSampledFigure(figure, state.mapping));
+    zPlane.updateFigures(state.sampledFigures);
+    wPlane.updateFigures(mappedFigures);
   });
   const mappingContent = document.createElement('div');
   mappingContent.className = 'mapping-content';
