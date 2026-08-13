@@ -99,6 +99,10 @@ body {
 }
 
 .figure-toolbar__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
   min-width: 5.5rem;
   padding: 0.65rem 0.75rem;
   border: 1px solid rgba(222, 173, 255, 0.55);
@@ -107,6 +111,12 @@ body {
   background: #342044;
   cursor: pointer;
   font: inherit;
+}
+
+.figure-toolbar__icon {
+  flex: 0 0 1.15rem;
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .figure-toolbar__button:hover,

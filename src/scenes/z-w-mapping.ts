@@ -4,8 +4,11 @@ import { LineSegment } from '../figures/line-segment';
 import { CassiniOvals, Ellipses } from '../figures/two-pole';
 import type { Figure } from '../figures/figure';
 import { mapSampledFigure, square } from '../mappings/complex-mapping';
-import { addFigure as addFigureToState, clearFigures, createMappingState, moveControlPoint, resampleFigures } from './mapping-state';
+import { addFigure as addFigureToState, clearFigures, createMappingState, moveControlPoint, resampleFigures, setSampleCount } from './mapping-state';
 import { defaultStyleState } from './style-state';
+import { createIcon } from '../ui/icons';
+
+const SAMPLE_COUNTS = [64, 128, 256, 512];
 
 function createPlanePanel(label: string, plane: ComplexPlane): HTMLElement {
   const panel = document.createElement('section');
@@ -49,37 +52,35 @@ export function setupZWmapping(): HTMLElement {
     updateFigures();
   };
 
-  const circlesButton = document.createElement('button');
-  circlesButton.className = 'figure-toolbar__button';
-  circlesButton.type = 'button';
-  circlesButton.textContent = 'Circles';
-  circlesButton.addEventListener('click', () => addFigure(new Circle()));
+  const createFigureButton = (label: string, icon: Parameters<typeof createIcon>[0], onClick: () => void): HTMLButtonElement => {
+    const button = document.createElement('button');
+    button.className = 'figure-toolbar__button';
+    button.type = 'button';
+    button.append(createIcon(icon, label), document.createTextNode(label));
+    button.addEventListener('click', onClick);
+    return button;
+  };
 
-  const lineButton = document.createElement('button');
-  lineButton.className = 'figure-toolbar__button';
-  lineButton.type = 'button';
-  lineButton.textContent = 'Line';
-  lineButton.addEventListener('click', () => addFigure(new LineSegment()));
-
-  const cassiniButton = document.createElement('button');
-  cassiniButton.className = 'figure-toolbar__button';
-  cassiniButton.type = 'button';
-  cassiniButton.textContent = 'Cassini';
+  const circlesButton = createFigureButton('Circles', 'circle', () => addFigure(new Circle()));
+  const lineButton = createFigureButton('Line', 'line', () => addFigure(new LineSegment()));
+  const cassiniButton = createFigureButton('Cassini', 'cassini', () => addFigure(new CassiniOvals()));
   cassiniButton.title = 'Loci where r₁ · r₂ is constant';
-  cassiniButton.addEventListener('click', () => addFigure(new CassiniOvals()));
-
-  const ellipseButton = document.createElement('button');
-  ellipseButton.className = 'figure-toolbar__button';
-  ellipseButton.type = 'button';
-  ellipseButton.textContent = 'Ellipses';
+  const ellipseButton = createFigureButton('Ellipses', 'ellipse', () => addFigure(new Ellipses()));
   ellipseButton.title = 'Loci where r₁ + r₂ is constant';
-  ellipseButton.addEventListener('click', () => addFigure(new Ellipses()));
 
   toolbar.append(circlesButton, lineButton, cassiniButton, ellipseButton);
-  const clearButton = document.createElement('button');
-  clearButton.className = 'figure-toolbar__button'; clearButton.type = 'button'; clearButton.textContent = 'Clear';
-  clearButton.addEventListener('click', () => { clearFigures(state); updateFigures(); });
+  const clearButton = createFigureButton('Clear', 'clear', () => { clearFigures(state); updateFigures(); });
   toolbar.append(clearButton);
+
+  const resolutionButton = createFigureButton(`Resolution: ${state.sampleCount}`, 'resolution', () => {
+    const current = SAMPLE_COUNTS.indexOf(state.sampleCount);
+    const next = SAMPLE_COUNTS[(current + 1) % SAMPLE_COUNTS.length];
+    setSampleCount(state, next);
+    resolutionButton.lastChild!.textContent = `Resolution: ${next}`;
+    updateFigures();
+  });
+  resolutionButton.title = 'Cycle drawing resolution';
+  toolbar.append(resolutionButton);
 
   const functionControl = document.createElement('div');
   functionControl.className = 'mapping-function';

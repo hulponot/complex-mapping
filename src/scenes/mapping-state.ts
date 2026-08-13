@@ -7,14 +7,21 @@ export interface MappingState {
   figures: Figure[];
   mapping: ComplexMapping;
   sampledFigures: SampledFigure[];
+  sampleCount: number;
 }
 
 export function createMappingState(mapping: ComplexMapping): MappingState {
-  return { figures: [], mapping, sampledFigures: [] };
+  return { figures: [], mapping, sampledFigures: [], sampleCount: 128 };
 }
 
 export function resampleFigures(state: MappingState): void {
-  state.sampledFigures = state.figures.map((figure) => sampleFigure(figure));
+  state.sampledFigures = state.figures.map((figure) => sampleFigure(figure, state.sampleCount));
+}
+
+export function setSampleCount(state: MappingState, sampleCount: number): void {
+  if (!Number.isInteger(sampleCount) || sampleCount < 2) throw new Error('sampleCount must be an integer of at least 2');
+  state.sampleCount = sampleCount;
+  resampleFigures(state);
 }
 
 export function addFigure(state: MappingState, figure: Figure): void {
