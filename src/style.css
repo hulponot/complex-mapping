@@ -82,15 +82,18 @@ body {
 
 .mapping-workspace {
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   gap: 2rem;
   flex: 1;
+  min-width: 0;
 }
 
 .figure-toolbar {
   display: flex;
   flex-direction: column;
+  flex: 0 0 auto;
   gap: 0.75rem;
   padding: 1rem 0.75rem;
   border: 1px solid rgba(222, 173, 255, 0.35);
@@ -130,6 +133,9 @@ body {
 }
 
 .mapping-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -197,16 +203,18 @@ body {
 }
 
 @media (max-width: 900px) {
-  .figure-toolbar {
-    flex-direction: row;
+  .mapping-content {
+    flex-direction: column;
   }
+}
 
+@media (max-width: 700px) {
   .mapping-workspace {
     flex-direction: column;
   }
 
-  .mapping-content {
-    flex-direction: column;
+  .figure-toolbar {
+    flex-direction: row;
   }
 }
 

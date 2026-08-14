@@ -108,14 +108,15 @@ export function setupZWmapping(): HTMLElement {
   });
   zPlane.onControlPointDrag(({ figureId, controlPointId, point }) => {
     moveControlPoint(state, figureId, controlPointId, point);
-    const mappedFigures = state.sampledFigures.map((figure) => mapSampledFigure(figure, state.mapping));
-    zPlane.updateFigures(state.sampledFigures);
-    wPlane.updateFigures(mappedFigures);
+    updateFigures();
   });
   const mappingContent = document.createElement('div');
   mappingContent.className = 'mapping-content';
   mappingContent.append(
-    createPlanePanel('z-plane', zPlane), functionControl, createPlanePanel('w-plane', wPlane),
+    toolbar,
+    createPlanePanel('z-plane', zPlane),
+    functionControl,
+    createPlanePanel('w-plane', wPlane),
   );
   const styleToolbar = document.createElement('div');
   styleToolbar.className = 'style-toolbar';
@@ -130,7 +131,7 @@ export function setupZWmapping(): HTMLElement {
   styleToolbar.append(color, opacity, gridColor, gridToggle);
   const workspace = document.createElement('div');
   workspace.className = 'mapping-workspace';
-  workspace.append(toolbar, mappingContent);
+  workspace.append(mappingContent);
   mapping.append(styleToolbar, workspace);
 
   const resize = (): void => {
