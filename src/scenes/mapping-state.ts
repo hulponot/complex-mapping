@@ -14,6 +14,10 @@ export function createMappingState(mapping: ComplexMapping): MappingState {
   return { figures: [], mapping, sampledFigures: [], sampleCount: 128 };
 }
 
+export function setMapping(state: MappingState, mapping: ComplexMapping): void {
+  state.mapping = mapping;
+}
+
 export function resampleFigures(state: MappingState): void {
   state.sampledFigures = state.figures.map((figure) => sampleFigure(figure, state.sampleCount));
 }

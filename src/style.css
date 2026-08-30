@@ -187,6 +187,22 @@ body {
   font: 1rem/1.2 var(--mono);
 }
 
+.mapping-function__select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid rgba(222, 173, 255, 0.6);
+  border-radius: 0.375rem;
+  color: #f8efff;
+  background: #2a1d32;
+  font: 1rem/1.2 var(--sans);
+}
+
+.mapping-function__select:focus-visible {
+  outline: 2px solid #d891ff;
+  outline-offset: 2px;
+}
+
 .mapping-function__input::placeholder {
   color: #c8b1d5;
 }

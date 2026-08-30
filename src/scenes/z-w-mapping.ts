@@ -3,8 +3,8 @@ import { Circle } from '../figures/circle';
 import { LineSegment } from '../figures/line-segment';
 import { CassiniOvals, Ellipses } from '../figures/two-pole';
 import type { Figure } from '../figures/figure';
-import { mapSampledFigure, square } from '../mappings/complex-mapping';
-import { addFigure as addFigureToState, clearFigures, createMappingState, moveControlPoint, resampleFigures, setSampleCount } from './mapping-state';
+import { COMPLEX_MAPPINGS, mapSampledFigure } from '../mappings/complex-mapping';
+import { addFigure as addFigureToState, clearFigures, createMappingState, moveControlPoint, resampleFigures, setMapping, setSampleCount } from './mapping-state';
 import { defaultStyleState } from './style-state';
 import { createIcon } from '../ui/icons';
 
@@ -31,7 +31,8 @@ export function setupZWmapping(): HTMLElement {
 
   const zPlane = new ComplexPlane();
   const wPlane = new ComplexPlane();
-  const state = createMappingState(square);
+  const selectedMapping = COMPLEX_MAPPINGS[0];
+  const state = createMappingState(selectedMapping.mapping);
   const styles = defaultStyleState();
   const updateFigures = (): void => {
     resampleFigures(state);
@@ -87,24 +88,45 @@ export function setupZWmapping(): HTMLElement {
 
   const label = document.createElement('label');
   label.className = 'mapping-function__label';
-  label.htmlFor = 'mapping-function-input';
+  label.htmlFor = 'mapping-function-select';
   label.textContent = 'Mapping';
+
+  const select = document.createElement('select');
+  select.className = 'mapping-function__select';
+  select.id = 'mapping-function-select';
+  select.setAttribute('aria-label', 'Choose a complex mapping');
+  COMPLEX_MAPPINGS.forEach((option, index) => {
+    const selectOption = document.createElement('option');
+    selectOption.value = String(index);
+    selectOption.textContent = option.label;
+    select.append(selectOption);
+  });
 
   const input = document.createElement('input');
   input.className = 'mapping-function__input';
   input.id = 'mapping-function-input';
   input.type = 'text';
-  input.placeholder = 'w = f(z)';
+  input.placeholder = selectedMapping.formula;
+  input.readOnly = true;
   input.setAttribute('aria-describedby', 'mapping-function-hint');
 
   const hint = document.createElement('p');
   hint.className = 'mapping-function__hint';
   hint.id = 'mapping-function-hint';
-  hint.textContent = 'Function mapping will be available soon.';
+  hint.textContent = selectedMapping.formula;
 
-  functionControl.append(label, input, hint);
+  select.addEventListener('change', () => {
+    const option = COMPLEX_MAPPINGS[Number(select.value)];
+    if (!option) return;
+    setMapping(state, option.mapping);
+    input.placeholder = option.formula;
+    hint.textContent = option.formula;
+    updateFigures();
+  });
+
+  functionControl.append(label, select, input, hint);
   zPlane.onPointerMove((point) => {
-    wPlane.setCursorPoint(point ? square(point) : null);
+    wPlane.setCursorPoint(point ? state.mapping(point) : null);
   });
   zPlane.onControlPointDrag(({ figureId, controlPointId, point }) => {
     moveControlPoint(state, figureId, controlPointId, point);
