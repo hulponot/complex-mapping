@@ -22,7 +22,7 @@ export type { ControlPointDrag } from './complex-plane-controls';
 
 interface RenderedFigure {
   readonly id: string;
-  readonly paths: Array<{ line: Line; closingLine?: Line }>;
+  paths: Array<{ line: Line; closingLine?: Line }>;
   readonly handles: Map<string, Mesh>;
 }
 
@@ -120,19 +120,25 @@ export class ComplexPlane {
         this.renderedFigures.set(item.id, this.createRenderedFigure(item));
         continue;
       }
-      const pathCount = item.paths?.length ?? 1;
       const ids = item.controlPoints.map((_, index) => item.controlPointIds?.[index] ?? `control-point-${index}`);
-      if (pathCount !== existing.paths.length || ids.length !== existing.handles.size || ids.some((id) => !existing.handles.has(id))) {
-        this.removeRenderedFigure(existing);
-        this.renderedFigures.set(item.id, this.createRenderedFigure(item));
-        continue;
+      this.reconcilePaths(existing, item);
+      if (ids.length !== existing.handles.size || ids.some((id) => !existing.handles.has(id))) {
+        this.controls.removeHandles(existing.handles);
+        this.createRenderedHandles(existing, item);
       }
     }
   }
 
   private createRenderedFigure(item: SampledFigure): RenderedFigure {
+    const rendered: RenderedFigure = { id: item.id, paths: [], handles: new Map() };
+    rendered.paths = this.createRenderedPaths(item);
+    this.createRenderedHandles(rendered, item);
+    return rendered;
+  }
+
+  private createRenderedPaths(item: SampledFigure): Array<{ line: Line; closingLine?: Line }> {
     const paths = item.paths ?? [item.points];
-    const renderedPaths = paths.map((path) => {
+    return paths.map((path) => {
       const line = new Line(this.createGeometry(path), this.figureMaterial);
       const closingLine = item.closed && path.length > 0
         ? new Line(this.createGeometry([path[path.length - 1], path[0]]), this.figureMaterial)
@@ -141,9 +147,14 @@ export class ComplexPlane {
       if (closingLine) this.figuresGroup.add(closingLine);
       return { line, closingLine };
     });
-    const rendered: RenderedFigure = { id: item.id, paths: renderedPaths, handles: new Map() };
-    this.createRenderedHandles(rendered, item);
-    return rendered;
+  }
+
+  private reconcilePaths(rendered: RenderedFigure, item: SampledFigure): void {
+    const paths = item.paths ?? [item.points];
+    if (paths.length === rendered.paths.length) return;
+
+    this.removeRenderedPaths(rendered);
+    rendered.paths = this.createRenderedPaths(item);
   }
 
   private createRenderedHandles(rendered: RenderedFigure, item: SampledFigure): void {
@@ -179,6 +190,11 @@ export class ComplexPlane {
 
   private removeRenderedFigure(rendered: RenderedFigure): void {
     this.removeRenderedHandles(rendered);
+    this.removeRenderedPaths(rendered);
+    this.renderedFigures.delete(rendered.id);
+  }
+
+  private removeRenderedPaths(rendered: RenderedFigure): void {
     for (const path of rendered.paths) {
       this.figuresGroup.remove(path.line);
       path.line.geometry.dispose();
@@ -187,7 +203,7 @@ export class ComplexPlane {
         path.closingLine.geometry.dispose();
       }
     }
-    this.renderedFigures.delete(rendered.id);
+    rendered.paths = [];
   }
 
   resize(width: number, height: number): void {
