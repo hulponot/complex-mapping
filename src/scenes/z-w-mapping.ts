@@ -1,7 +1,7 @@
 import { ComplexPlane } from './complex-plane';
-import { Circle } from '../figures/circle';
-import { LineSegment } from '../figures/line-segment';
-import { CassiniOvals, Ellipses } from '../figures/two-pole';
+import { Circle, ConcentricCircles } from '../figures/circle';
+import { LineSegment, ParallelLineSegments } from '../figures/line-segment';
+import { CassiniOval, CassiniOvals, Ellipse, Ellipses } from '../figures/two-pole';
 import type { Figure } from '../figures/figure';
 import { COMPLEX_MAPPINGS, mapSampledFigure } from '../mappings/complex-mapping';
 import { addFigure as addFigureToState, clearFigures, createMappingState, moveControlPoint, resampleFigures, setMapping, setSampleCount } from './mapping-state';
@@ -62,14 +62,22 @@ export function setupZWmapping(): HTMLElement {
     return button;
   };
 
-  const circlesButton = createFigureButton('Circles', 'circle', () => addFigure(new Circle()));
+  const circleButton = createFigureButton('Circle', 'circle', () => addFigure(new Circle()));
+  const circlesButton = createFigureButton('Circles', 'circles', () => addFigure(new ConcentricCircles()));
+  circlesButton.title = 'Add concentric circles at multiple radii';
   const lineButton = createFigureButton('Line', 'line', () => addFigure(new LineSegment()));
-  const cassiniButton = createFigureButton('Cassini', 'cassini', () => addFigure(new CassiniOvals()));
-  cassiniButton.title = 'Loci where r₁ · r₂ is constant';
-  const ellipseButton = createFigureButton('Ellipses', 'ellipse', () => addFigure(new Ellipses()));
-  ellipseButton.title = 'Loci where r₁ + r₂ is constant';
+  const linesButton = createFigureButton('Lines', 'lines', () => addFigure(new ParallelLineSegments()));
+  linesButton.title = 'Add parallel line segments at multiple offsets';
+  const cassiniButton = createFigureButton('Cassini', 'cassini', () => addFigure(new CassiniOval()));
+  cassiniButton.title = 'Locus where r₁ · r₂ is constant';
+  const cassinisButton = createFigureButton('Cassinis', 'cassinis', () => addFigure(new CassiniOvals()));
+  cassinisButton.title = 'Add multiple Cassini loci for different constants';
+  const ellipseButton = createFigureButton('Ellipse', 'ellipse', () => addFigure(new Ellipse()));
+  ellipseButton.title = 'Locus where r₁ + r₂ is constant';
+  const ellipsesButton = createFigureButton('Ellipses', 'ellipses', () => addFigure(new Ellipses()));
+  ellipsesButton.title = 'Add multiple ellipse loci for different constants';
 
-  toolbar.append(circlesButton, lineButton, cassiniButton, ellipseButton);
+  toolbar.append(circleButton, circlesButton, lineButton, linesButton, cassiniButton, cassinisButton, ellipseButton, ellipsesButton);
   const clearButton = createFigureButton('Clear', 'clear', () => { clearFigures(state); updateFigures(); });
   toolbar.append(clearButton);
 

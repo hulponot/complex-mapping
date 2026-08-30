@@ -50,7 +50,7 @@ abstract class TwoPoleFigure implements Figure {
 /** Cassini ovals: the product of distances to the two poles is constant. */
 export class CassiniOvals extends TwoPoleFigure {
   constructor(
-    private constants: readonly number[] = [2, 4, 6, 8],
+    private constants: readonly number[] = [2, 4, 6, 8, 12, 18, 26],
     pole1?: ComplexPoint,
     pole2?: ComplexPoint,
     id?: string,
@@ -96,7 +96,7 @@ export class CassiniOvals extends TwoPoleFigure {
 /** Ellipses whose foci are the two poles; each constant is the distance sum. */
 export class Ellipses extends TwoPoleFigure {
   constructor(
-    private constants: readonly number[] = [5, 6, 8, 10],
+    private constants: readonly number[] = [5, 6, 8, 10, 14, 18, 24],
     pole1?: ComplexPoint,
     pole2?: ComplexPoint,
     id?: string,
@@ -120,5 +120,31 @@ export class Ellipses extends TwoPoleFigure {
   }
 }
 
-// Singular aliases match the existing Circle/LineSegment figure naming style.
-export { CassiniOvals as CassiniOval, Ellipses as Ellipse };
+/** Single-loop forms used by the simple toolbar actions. */
+export class CassiniOval extends CassiniOvals {
+  constructor(constants?: readonly number[], pole1?: ComplexPoint, pole2?: ComplexPoint, id?: string);
+  constructor(pole1?: ComplexPoint, pole2?: ComplexPoint, id?: string);
+  constructor(
+    constantsOrPole1?: readonly number[] | ComplexPoint,
+    pole1OrPole2?: ComplexPoint,
+    pole2OrId?: ComplexPoint | string,
+    id?: string,
+  ) {
+    if (Array.isArray(constantsOrPole1)) super(constantsOrPole1, pole1OrPole2, pole2OrId as ComplexPoint | undefined, id);
+    else super([4], constantsOrPole1, pole1OrPole2, pole2OrId as string | undefined);
+  }
+}
+
+export class Ellipse extends Ellipses {
+  constructor(constants?: readonly number[], pole1?: ComplexPoint, pole2?: ComplexPoint, id?: string);
+  constructor(pole1?: ComplexPoint, pole2?: ComplexPoint, id?: string);
+  constructor(
+    constantsOrPole1?: readonly number[] | ComplexPoint,
+    pole1OrPole2?: ComplexPoint,
+    pole2OrId?: ComplexPoint | string,
+    id?: string,
+  ) {
+    if (Array.isArray(constantsOrPole1)) super(constantsOrPole1, pole1OrPole2, pole2OrId as ComplexPoint | undefined, id);
+    else super([6], constantsOrPole1, pole1OrPole2, pole2OrId as string | undefined);
+  }
+}
