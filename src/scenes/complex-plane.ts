@@ -8,17 +8,17 @@ import {
   BufferGeometry,
   Mesh,
   MeshBasicMaterial,
-  Plane as ThreePlane,
-  Raycaster,
-  Vector2,
-  Vector3,
   SphereGeometry,
+  Vector3,
   Scene,
   WebGLRenderer,
 } from 'three';
 import type { SampledFigure } from '../figures/figure';
 import type { ComplexPoint } from '../math/complex-point';
-import { fromVector3, toVector3 } from '../math/complex-point';
+import { toVector3 } from '../math/complex-point';
+import { ComplexPlaneControls, type ControlPointDrag } from './complex-plane-controls';
+
+export type { ControlPointDrag } from './complex-plane-controls';
 
 interface RenderedFigure {
   readonly id: string;
@@ -27,11 +27,6 @@ interface RenderedFigure {
 }
 
 export class ComplexPlane {
-  private static readonly controlPointColor = 0xffaa00;
-  private static readonly hoveredControlPointColor = 0xffdd66;
-  private static readonly activeControlPointColor = 0xffffff;
-  private static readonly controlPointSnapDistance = 0.65;
-
   readonly renderer: WebGLRenderer;
 
   private readonly camera: OrthographicCamera;
@@ -41,21 +36,8 @@ export class ComplexPlane {
   private readonly controlGroup: Group;
   private readonly grid: GridHelper;
   private readonly cursor: Mesh;
-  private readonly raycaster = new Raycaster();
-  private readonly pointer = new Vector2();
-  private pointerCallback?: (point: ComplexPoint | null) => void;
-  private controlPointDragCallback?: (event: ControlPointDrag) => void;
-  private controlPointDragStartCallback?: (event: ControlPointDrag) => void;
-  private controlPointDragEndCallback?: (event: ControlPointDrag) => void;
+  private readonly controls: ComplexPlaneControls;
   private readonly renderedFigures = new Map<string, RenderedFigure>();
-  private readonly controlHandles = new Map<Mesh, { figureId: string; controlPointId: string }>();
-  private activeDrag?: {
-    mesh: Mesh;
-    figureId: string;
-    controlPointId: string;
-    lastPoint: ComplexPoint;
-  };
-  private hoveredControl?: Mesh;
 
   constructor() {
     this.scene = new Scene();
@@ -80,12 +62,7 @@ export class ComplexPlane {
     this.cursor = new Mesh(new SphereGeometry(0.18, 16, 8), new MeshBasicMaterial({ color: 0xffffff }));
     this.cursor.visible = false;
     this.scene.add(this.cursor);
-    this.domElement.addEventListener('pointermove', this.handlePointerMove);
-    this.domElement.addEventListener('pointerleave', this.handlePointerLeave);
-    this.domElement.addEventListener('pointerdown', this.handlePointerDown);
-    this.domElement.addEventListener('pointerup', this.handlePointerUp);
-    this.domElement.addEventListener('pointercancel', this.handlePointerUp);
-    this.domElement.addEventListener('lostpointercapture', this.handleLostPointerCapture);
+    this.controls = new ComplexPlaneControls(this.domElement, this.camera, this.controlGroup, this.cursor);
     this.renderer.setAnimationLoop(this.render);
   }
 
@@ -95,12 +72,7 @@ export class ComplexPlane {
 
   dispose(): void {
     this.clearFigures();
-    this.domElement.removeEventListener('pointermove', this.handlePointerMove);
-    this.domElement.removeEventListener('pointerleave', this.handlePointerLeave);
-    this.domElement.removeEventListener('pointerdown', this.handlePointerDown);
-    this.domElement.removeEventListener('pointerup', this.handlePointerUp);
-    this.domElement.removeEventListener('pointercancel', this.handlePointerUp);
-    this.domElement.removeEventListener('lostpointercapture', this.handleLostPointerCapture);
+    this.controls.dispose();
     this.cursor.geometry.dispose();
     (this.cursor.material as MeshBasicMaterial).dispose();
     this.figureMaterial.dispose();
@@ -131,8 +103,7 @@ export class ComplexPlane {
         const controlPointId = item.controlPointIds?.[index] ?? `control-point-${index}`;
         const handle = rendered.handles.get(controlPointId);
         if (handle) {
-          const vector = toVector3(point);
-          handle.position.set(vector.x, vector.y, vector.z);
+          this.controls.updateHandle(handle, point);
         }
       });
     }
@@ -176,15 +147,7 @@ export class ComplexPlane {
   }
 
   private createRenderedHandles(rendered: RenderedFigure, item: SampledFigure): void {
-    item.controlPoints.forEach((point, index) => {
-      const controlPointId = item.controlPointIds?.[index] ?? `control-point-${index}`;
-      const control = new Mesh(new SphereGeometry(0.25, 12, 8), new MeshBasicMaterial({ color: ComplexPlane.controlPointColor }));
-      const vector = toVector3(point);
-      control.position.set(vector.x, vector.y, vector.z);
-      rendered.handles.set(controlPointId, control);
-      this.controlGroup.add(control);
-      this.controlHandles.set(control, { figureId: item.id, controlPointId });
-    });
+    for (const [id, handle] of this.controls.createHandles(item.id, item.controlPoints, item.controlPointIds)) rendered.handles.set(id, handle);
   }
 
   private createGeometry(points: readonly ComplexPoint[]): BufferGeometry {
@@ -211,17 +174,10 @@ export class ComplexPlane {
   }
 
   private removeRenderedHandles(rendered: RenderedFigure): void {
-    for (const handle of rendered.handles.values()) {
-      this.controlHandles.delete(handle);
-      this.controlGroup.remove(handle);
-      handle.geometry.dispose();
-      (handle.material as MeshBasicMaterial).dispose();
-    }
-    rendered.handles.clear();
+    this.controls.removeHandles(rendered.handles);
   }
 
   private removeRenderedFigure(rendered: RenderedFigure): void {
-    if (this.activeDrag?.figureId === rendered.id) this.endDrag();
     this.removeRenderedHandles(rendered);
     for (const path of rendered.paths) {
       this.figuresGroup.remove(path.line);
@@ -246,9 +202,8 @@ export class ComplexPlane {
   }
 
   clearFigures(): void {
-    this.endDrag();
-    this.hoveredControl = undefined;
     for (const rendered of [...this.renderedFigures.values()]) this.removeRenderedFigure(rendered);
+    this.controls.clear();
   }
 
   setFigureStyle(style: { color?: number; opacity?: number; linewidth?: number }): void {
@@ -269,146 +224,21 @@ export class ComplexPlane {
     }
   }
 
-  onPointerMove(callback: (point: ComplexPoint | null) => void): void { this.pointerCallback = callback; }
+  onPointerMove(callback: (point: ComplexPoint | null) => void): void { this.controls.onPointerMove(callback); }
 
   onControlPointDrag(callback: (event: ControlPointDrag) => void): void {
-    this.controlPointDragCallback = callback;
+    this.controls.onDrag(callback);
   }
 
   onControlPointDragStart(callback: (event: ControlPointDrag) => void): void {
-    this.controlPointDragStartCallback = callback;
+    this.controls.onDragStart(callback);
   }
 
   onControlPointDragEnd(callback: (event: ControlPointDrag) => void): void {
-    this.controlPointDragEndCallback = callback;
+    this.controls.onDragEnd(callback);
   }
-
-  private pointFromPointer(event: PointerEvent): ComplexPoint | null {
-    const rect = this.domElement.getBoundingClientRect();
-    this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hit = this.raycaster.ray.intersectPlane(new ThreePlane(new Vector3(0, 1, 0), 0), new Vector3());
-    return hit ? fromVector3(hit) : null;
-  }
-
-  private setControlColor(control: Mesh, color: number): void {
-    (control.material as MeshBasicMaterial).color.setHex(color);
-  }
-
-  private nearbyControl(point: ComplexPoint): Mesh | undefined {
-    let closest: Mesh | undefined;
-    let closestDistance = ComplexPlane.controlPointSnapDistance;
-    for (const control of this.controlHandles.keys()) {
-      if (control === this.activeDrag?.mesh) continue;
-      const distance = Math.hypot(control.position.x - point.real, control.position.z - point.imaginary);
-      if (distance < closestDistance) {
-        closest = control;
-        closestDistance = distance;
-      }
-    }
-    return closest;
-  }
-
-  private updateHoveredControl(control: Mesh | undefined): void {
-    if (control === this.hoveredControl) return;
-    if (this.hoveredControl && this.hoveredControl !== this.activeDrag?.mesh) {
-      this.setControlColor(this.hoveredControl, ComplexPlane.controlPointColor);
-    }
-    this.hoveredControl = control;
-    if (control && control !== this.activeDrag?.mesh) {
-      this.setControlColor(control, ComplexPlane.hoveredControlPointColor);
-    }
-  }
-
-  private dragEvent(point: ComplexPoint): ControlPointDrag {
-    const drag = this.activeDrag!;
-    return { figureId: drag.figureId, controlPointId: drag.controlPointId, point };
-  }
-
-  private handlePointerDown = (event: PointerEvent): void => {
-    const rect = this.domElement.getBoundingClientRect();
-    this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hit = this.raycaster.intersectObjects(this.controlGroup.children, true)[0];
-    const mesh = hit?.object instanceof Mesh ? hit.object : undefined;
-    const metadata = mesh ? this.controlHandles.get(mesh) : undefined;
-    if (!mesh || !metadata) return;
-    this.activeDrag = {
-      mesh,
-      ...metadata,
-      lastPoint: { real: mesh.position.x, imaginary: mesh.position.z },
-    };
-    this.updateHoveredControl(undefined);
-    this.setControlColor(mesh, ComplexPlane.activeControlPointColor);
-    this.domElement.setPointerCapture(event.pointerId);
-    const point = this.pointFromPointer(event);
-    if (point) {
-      this.activeDrag.lastPoint = point;
-      this.controlPointDragStartCallback?.(this.dragEvent(point));
-    }
-    event.preventDefault();
-  };
-
-  private handlePointerUp = (event: PointerEvent): void => {
-    if (!this.activeDrag) return;
-    const point = this.pointFromPointer(event);
-    if (point) this.activeDrag.lastPoint = point;
-    this.endDrag(event.pointerId);
-  };
-
-  private handleLostPointerCapture = (): void => {
-    this.endDrag();
-  };
-
-  private endDrag(pointerId?: number): void {
-    if (!this.activeDrag) return;
-    const drag = this.activeDrag;
-    this.controlPointDragEndCallback?.({
-      figureId: drag.figureId,
-      controlPointId: drag.controlPointId,
-      point: drag.lastPoint,
-    });
-    this.setControlColor(drag.mesh, ComplexPlane.controlPointColor);
-    this.activeDrag = undefined;
-    if (pointerId !== undefined && this.domElement.hasPointerCapture(pointerId)) {
-      this.domElement.releasePointerCapture(pointerId);
-    }
-    this.updateHoveredControl(undefined);
-  };
-
-  private handlePointerMove = (event: PointerEvent): void => {
-    const point = this.pointFromPointer(event);
-    if (point) {
-      const nearby = this.activeDrag ? undefined : this.nearbyControl(point);
-      const snappedPoint = nearby
-        ? { real: nearby.position.x, imaginary: nearby.position.z }
-        : point;
-      this.updateHoveredControl(nearby);
-      const vector = toVector3(snappedPoint);
-      this.cursor.position.set(vector.x, vector.y, vector.z);
-      this.cursor.visible = true;
-      this.pointerCallback?.(snappedPoint);
-      if (this.activeDrag) {
-        this.activeDrag.lastPoint = point;
-        this.controlPointDragCallback?.(this.dragEvent(point));
-      }
-    }
-  };
-
-  private handlePointerLeave = (): void => {
-    this.cursor.visible = false;
-    this.pointerCallback?.(null);
-    this.updateHoveredControl(undefined);
-    this.endDrag();
-  };
 
   private render = (): void => {
     this.renderer.render(this.scene, this.camera);
   };
-}
-
-export interface ControlPointDrag {
-  readonly figureId: string;
-  readonly controlPointId: string;
-  readonly point: ComplexPoint;
 }
