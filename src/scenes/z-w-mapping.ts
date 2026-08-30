@@ -38,8 +38,8 @@ export function setupZWmapping(): HTMLElement {
     resampleFigures(state);
     zPlane.setFigures(state.sampledFigures);
     wPlane.setFigures(state.sampledFigures.map((figure) => mapSampledFigure(figure, state.mapping)));
-    zPlane.setFigureStyle({ color: styles.figureColor, opacity: styles.figureOpacity });
-    wPlane.setFigureStyle({ color: styles.figureColor, opacity: styles.figureOpacity });
+    zPlane.setFigureStyle({ color: styles.figureColor, opacity: styles.figureOpacity, linewidth: styles.figureLineWidth });
+    wPlane.setFigureStyle({ color: styles.figureColor, opacity: styles.figureOpacity, linewidth: styles.figureLineWidth });
     zPlane.setGridStyle({ color: styles.gridColor, visible: styles.gridVisible });
     wPlane.setGridStyle({ color: styles.gridColor, visible: styles.gridVisible });
   };
@@ -142,15 +142,29 @@ export function setupZWmapping(): HTMLElement {
   );
   const styleToolbar = document.createElement('div');
   styleToolbar.className = 'style-toolbar';
+  const createStyleLabel = (text: string, control: HTMLElement): HTMLLabelElement => {
+    const label = document.createElement('label');
+    label.className = 'style-toolbar__control';
+    label.append(document.createTextNode(text), control);
+    return label;
+  };
   const color = document.createElement('input'); color.type = 'color'; color.value = '#ffff00'; color.title = 'Figure color'; color.setAttribute('aria-label', 'Figure color');
   color.addEventListener('input', () => { styles.figureColor = Number.parseInt(color.value.slice(1), 16); updateFigures(); });
   const opacity = document.createElement('input'); opacity.type = 'range'; opacity.min = '0.1'; opacity.max = '1'; opacity.step = '0.1'; opacity.value = '1'; opacity.title = 'Figure opacity'; opacity.setAttribute('aria-label', 'Figure opacity');
   opacity.addEventListener('input', () => { styles.figureOpacity = Number(opacity.value); updateFigures(); });
+  const lineWidth = document.createElement('input'); lineWidth.type = 'range'; lineWidth.min = '0.01'; lineWidth.max = '0.2'; lineWidth.step = '0.01'; lineWidth.value = String(styles.figureLineWidth); lineWidth.title = 'Line width'; lineWidth.setAttribute('aria-label', 'Line width');
+  lineWidth.addEventListener('input', () => { styles.figureLineWidth = Number(lineWidth.value); updateFigures(); });
   const gridColor = document.createElement('input'); gridColor.type = 'color'; gridColor.value = '#227799'; gridColor.title = 'Grid color'; gridColor.setAttribute('aria-label', 'Grid color');
   gridColor.addEventListener('input', () => { styles.gridColor = Number.parseInt(gridColor.value.slice(1), 16); updateFigures(); });
   const gridToggle = document.createElement('input'); gridToggle.type = 'checkbox'; gridToggle.checked = true; gridToggle.title = 'Show grid'; gridToggle.setAttribute('aria-label', 'Show grid');
   gridToggle.addEventListener('change', () => { styles.gridVisible = gridToggle.checked; updateFigures(); });
-  styleToolbar.append(color, opacity, gridColor, gridToggle);
+  styleToolbar.append(
+    createStyleLabel('Line color', color),
+    createStyleLabel('Width', lineWidth),
+    createStyleLabel('Opacity', opacity),
+    createStyleLabel('Grid color', gridColor),
+    createStyleLabel('Show grid', gridToggle),
+  );
   const workspace = document.createElement('div');
   workspace.className = 'mapping-workspace';
   workspace.append(mappingContent);

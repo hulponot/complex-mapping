@@ -80,6 +80,18 @@ body {
   color: #f8efff;
 }
 
+.style-toolbar__control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.style-toolbar__control input[type='range'] {
+  width: 5rem;
+}
+
 .mapping-workspace {
   display: flex;
   flex-direction: row;

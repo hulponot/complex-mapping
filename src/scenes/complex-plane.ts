@@ -3,16 +3,17 @@ import {
   OrthographicCamera,
   GridHelper,
   Group,
-  Line,
-  LineBasicMaterial,
-  BufferGeometry,
   Mesh,
   MeshBasicMaterial,
   SphereGeometry,
   Vector3,
   Scene,
+  Vector2,
   WebGLRenderer,
 } from 'three';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { SampledFigure } from '../figures/figure';
 import type { ComplexPoint } from '../math/complex-point';
 import { toVector3 } from '../math/complex-point';
@@ -22,7 +23,7 @@ export type { ControlPointDrag } from './complex-plane-controls';
 
 interface RenderedFigure {
   readonly id: string;
-  paths: Array<{ line: Line; closingLine?: Line }>;
+  paths: Array<{ line: Line2; closingLine?: Line2 }>;
   readonly handles: Map<string, Mesh>;
 }
 
@@ -32,7 +33,7 @@ export class ComplexPlane {
   private readonly camera: OrthographicCamera;
   private readonly scene: Scene;
   private readonly figuresGroup: Group;
-  private readonly figureMaterial: LineBasicMaterial;
+  private readonly figureMaterial: LineMaterial;
   private readonly controlGroup: Group;
   private readonly grid: GridHelper;
   private readonly cursor: Mesh;
@@ -50,12 +51,12 @@ export class ComplexPlane {
     this.camera = new OrthographicCamera(-10, 10, 10, -10, 0.01, 1000);
     this.camera.position.set(0, 5, 0);
     this.camera.lookAt(0, 0, 0);
+    this.figureMaterial = new LineMaterial({ color: 0xffff00, linewidth: 0.06, worldUnits: true, resolution: new Vector2() });
     this.resize(300, 300);
 
     this.grid = new GridHelper(100, 100, 0x227799, 0xccaaaa);
     this.scene.add(this.grid);
     this.figuresGroup = new Group();
-    this.figureMaterial = new LineBasicMaterial({ color: 0xffff00 });
     this.scene.add(this.figuresGroup);
     this.controlGroup = new Group();
     this.scene.add(this.controlGroup);
@@ -136,12 +137,12 @@ export class ComplexPlane {
     return rendered;
   }
 
-  private createRenderedPaths(item: SampledFigure): Array<{ line: Line; closingLine?: Line }> {
+  private createRenderedPaths(item: SampledFigure): Array<{ line: Line2; closingLine?: Line2 }> {
     const paths = item.paths ?? [item.points];
     return paths.map((path) => {
-      const line = new Line(this.createGeometry(path), this.figureMaterial);
+      const line = new Line2(this.createLineGeometry(path), this.figureMaterial);
       const closingLine = item.closed && path.length > 0
-        ? new Line(this.createGeometry([path[path.length - 1], path[0]]), this.figureMaterial)
+        ? new Line2(this.createLineGeometry([path[path.length - 1], path[0]]), this.figureMaterial)
         : undefined;
       this.figuresGroup.add(line);
       if (closingLine) this.figuresGroup.add(closingLine);
@@ -161,27 +162,28 @@ export class ComplexPlane {
     for (const [id, handle] of this.controls.createHandles(item.id, item.controlPoints, item.controlPointIds)) rendered.handles.set(id, handle);
   }
 
-  private createGeometry(points: readonly ComplexPoint[]): BufferGeometry {
-    return new BufferGeometry().setFromPoints(points.map((point) => {
-      const vector = toVector3(point);
-      return new Vector3(vector.x, vector.y, vector.z);
-    }));
+  private createLineGeometry(points: readonly ComplexPoint[]): LineGeometry {
+    return new LineGeometry().setPositions(this.linePositions(points));
   }
 
-  private updateLineGeometry(line: Line, points: readonly ComplexPoint[]): void {
-    const position = line.geometry.getAttribute('position');
-    if (position.count !== points.length) {
+  private linePositions(points: readonly ComplexPoint[]): number[] {
+    if (points.length === 0) return [0, 0, 0];
+    return points.flatMap((point) => {
+      const vector = toVector3(point);
+      return [vector.x, vector.y, vector.z];
+    });
+  }
+
+  private updateLineGeometry(line: Line2, points: readonly ComplexPoint[]): void {
+    const geometry = line.geometry as LineGeometry;
+    const position = geometry.getAttribute('instanceStart');
+    if (position.count !== Math.max(points.length - 1, 0)) {
       const oldGeometry = line.geometry;
-      line.geometry = this.createGeometry(points);
+      line.geometry = this.createLineGeometry(points);
       oldGeometry.dispose();
       return;
     }
-    points.forEach((point, index) => {
-      const vector = toVector3(point);
-      position.setXYZ(index, vector.x, vector.y, vector.z);
-    });
-    position.needsUpdate = true;
-    line.geometry.computeBoundingSphere();
+    geometry.setPositions(this.linePositions(points));
   }
 
   private removeRenderedHandles(rendered: RenderedFigure): void {
@@ -215,6 +217,7 @@ export class ComplexPlane {
     this.camera.bottom = -halfHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
+    this.figureMaterial.resolution.set(width, height);
   }
 
   clearFigures(): void {
@@ -225,6 +228,7 @@ export class ComplexPlane {
   setFigureStyle(style: { color?: number; opacity?: number; linewidth?: number }): void {
     if (style.color !== undefined) this.figureMaterial.color.setHex(style.color);
     if (style.opacity !== undefined) { this.figureMaterial.opacity = style.opacity; this.figureMaterial.transparent = style.opacity < 1; }
+    if (style.linewidth !== undefined) this.figureMaterial.linewidth = style.linewidth;
   }
 
   setGridStyle(style: { color?: number; visible?: boolean }): void {
